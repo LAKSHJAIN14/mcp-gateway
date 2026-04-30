@@ -12,6 +12,7 @@ import (
 	_ "net/http/pprof" //nolint:gosec // G108: intentional pprof endpoint for performance profiling
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
@@ -352,6 +353,15 @@ func setUpHTTPServer(address string, mcpBroker broker.MCPBroker, sessionManager 
 	mux.HandleFunc("OPTIONS /mcp", func(w http.ResponseWriter, r *http.Request) {
 		logger.Debug("Handling OPTIONS", "Mcp-Session-Id", r.Header.Get("Mcp-Session-Id"))
 		w.WriteHeader(http.StatusOK)
+	})
+
+	mux.HandleFunc("GET /mcp", func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		if strings.Contains(accept, "text/event-stream") {
+			streamableHTTPServer.ServeHTTP(w, r)
+			return
+		}
+		http.Error(w, "GET /mcp requires Accept: text/event-stream header for SSE streaming", http.StatusNotAcceptable)
 	})
 
 	mux.HandleFunc("/status", mcpBroker.HandleStatusRequest)
